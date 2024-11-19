@@ -1,5 +1,6 @@
 package me.hsgamer.demodatarest.controller;
 
+import jakarta.annotation.Nullable;
 import me.hsgamer.demodatarest.dto.ResponseCode;
 import me.hsgamer.demodatarest.dto.ResponseDTO;
 import org.springframework.data.domain.Page;
@@ -29,19 +30,19 @@ public abstract class CrudController<T, ID, RP extends CrudRepository<T, ID>, RE
     protected abstract void updateEntity(T t, REQ req);
 
     @GetMapping
-    public ResponseEntity<ResponseDTO<List<RES>>> getAll(@RequestParam("page") Optional<Integer> page, @RequestParam("size") Optional<Integer> size, @RequestParam("sort") Optional<String> sort, @RequestParam("direction") Optional<String> direction) {
+    public ResponseEntity<ResponseDTO<List<RES>>> getAll(@RequestParam("page") @Nullable Integer page, @RequestParam("size") @Nullable Integer size, @RequestParam("sort") @Nullable String sort, @RequestParam("direction") @Nullable String direction) {
         Map<String, Object> extra = new HashMap<>();
         List<RES> list = new ArrayList<>();
         Consumer<T> addToList = t -> list.add(toResponse(t));
 
-        if (page.isPresent() && repository instanceof PagingAndSortingRepository) {
+        if (page != null && repository instanceof PagingAndSortingRepository) {
             //noinspection unchecked
             PagingAndSortingRepository<T, ID> pagingAndSortingRepository = (PagingAndSortingRepository<T, ID>) repository;
 
-            int finalPage = page.get();
-            int finalSize = size.orElse(20);
-            Sort.Direction finalDirection = direction.flatMap(Sort.Direction::fromOptionalString).orElse(Sort.Direction.ASC);
-            Sort finalSort = sort.map(s -> s.split(",")).map(properties -> Sort.by(finalDirection, properties)).orElse(Sort.unsorted());
+            int finalPage = page;
+            int finalSize = size == null ? 10 : size;
+            Sort.Direction finalDirection = Optional.ofNullable(direction).flatMap(Sort.Direction::fromOptionalString).orElse(Sort.Direction.ASC);
+            Sort finalSort = Optional.ofNullable(sort).map(s -> s.split(",")).map(properties -> Sort.by(finalDirection, properties)).orElse(Sort.unsorted());
 
             Pageable pageable = PageRequest.of(finalPage, finalSize, finalSort);
 
