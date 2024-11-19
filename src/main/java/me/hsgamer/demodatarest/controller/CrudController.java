@@ -30,7 +30,7 @@ public abstract class CrudController<T, ID, RP extends CrudRepository<T, ID>, RE
     protected abstract void updateEntity(T t, REQ req);
 
     @GetMapping
-    public ResponseEntity<ResponseDTO<List<RES>>> getAll(@RequestParam("page") @Nullable Integer page, @RequestParam("size") @Nullable Integer size, @RequestParam("sort") @Nullable String sort, @RequestParam("direction") @Nullable String direction) {
+    public ResponseEntity<ResponseDTO<List<RES>>> getAll(@RequestParam("page") @Nullable Integer page, @RequestParam("size") @Nullable Integer size, @RequestParam("sort") @Nullable List<String> sort) {
         Map<String, Object> extra = new HashMap<>();
         List<RES> list = new ArrayList<>();
         Consumer<T> addToList = t -> list.add(toResponse(t));
@@ -41,8 +41,25 @@ public abstract class CrudController<T, ID, RP extends CrudRepository<T, ID>, RE
 
             int finalPage = page;
             int finalSize = size == null ? 10 : size;
-            Sort.Direction finalDirection = Optional.ofNullable(direction).flatMap(Sort.Direction::fromOptionalString).orElse(Sort.Direction.ASC);
-            Sort finalSort = Optional.ofNullable(sort).map(s -> s.split(",")).map(properties -> Sort.by(finalDirection, properties)).orElse(Sort.unsorted());
+            Sort finalSort;
+            if (sort == null) {
+                finalSort = Sort.unsorted();
+            } else {
+                List<Sort.Order> orders = new ArrayList<>();
+                for (String s : sort) {
+                    String[] split = s.split(",");
+                    Sort.Direction direction = Sort.Direction.ASC;
+                    if (split.length > 1) {
+                        direction = Sort.Direction.fromString(split[1]);
+                    }
+                    Sort.Order order = new Sort.Order(direction, split[0]);
+                    if (split.length > 2 && "ignoreCase".equalsIgnoreCase(split[2])) {
+                        order = order.ignoreCase();
+                    }
+                    orders.add(order);
+                }
+                finalSort = Sort.by(orders);
+            }
 
             Pageable pageable = PageRequest.of(finalPage, finalSize, finalSort);
 
