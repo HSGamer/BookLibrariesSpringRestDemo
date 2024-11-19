@@ -1,4 +1,8 @@
 package me.hsgamer.demodatarest.dto.request;
 
-public record LibraryRequest(String name) {
+import lombok.Data;
+
+@Data
+public final class LibraryRequest {
+    String name;
 }

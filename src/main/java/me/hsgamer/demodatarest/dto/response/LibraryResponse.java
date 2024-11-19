@@ -1,9 +1,9 @@
 package me.hsgamer.demodatarest.dto.response;
 
-import me.hsgamer.demodatarest.model.Library;
+import lombok.Data;
 
-public record LibraryResponse(int id, String name) {
-    public static LibraryResponse fromEntity(Library library) {
-        return new LibraryResponse(library.getId(), library.getName());
-    }
+@Data
+public final class LibraryResponse {
+    int id;
+    String name;
 }
