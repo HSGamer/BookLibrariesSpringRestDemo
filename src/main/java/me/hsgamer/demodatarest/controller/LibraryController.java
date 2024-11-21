@@ -11,8 +11,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/libraries")
 public class LibraryController extends AutoMapCrudController<Library, Integer, LibraryRepository, LibraryRequest, LibraryResponse> {
+    private final LibraryRepository repository;
+
     public LibraryController(LibraryRepository repository, ModelMapper modelMapper) {
-        super(repository, modelMapper);
+        super(modelMapper);
+        this.repository = repository;
     }
 
     @Override
@@ -21,12 +24,27 @@ public class LibraryController extends AutoMapCrudController<Library, Integer, L
     }
 
     @Override
-    protected void afterMap(Library library, LibraryRequest libraryRequest) {
+    protected Class<LibraryRequest> getRequestClass() {
+        return LibraryRequest.class;
+    }
+
+    @Override
+    protected void mapToEntity(Library library, LibraryRequest libraryRequest) {
 
     }
 
     @Override
-    protected Library newEntity() {
+    protected void mapToRequest(Library library, LibraryRequest libraryRequest) {
+
+    }
+
+    @Override
+    public LibraryRepository getRepository() {
+        return repository;
+    }
+
+    @Override
+    public Library newEntity() {
         return new Library();
     }
 }

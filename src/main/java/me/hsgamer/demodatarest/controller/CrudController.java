@@ -15,14 +15,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 
-public abstract class CrudController<T, ID, RP extends CrudRepository<T, ID>, REQ, RES> {
-    protected final RP repository;
-
-    protected CrudController(RP repository) {
-        this.repository = repository;
-    }
-
-    protected static Sort getSort(List<String> sort) {
+public interface CrudController<T, ID, RP extends CrudRepository<T, ID>, REQ, RES> {
+    static Sort getSort(List<String> sort) {
         List<Sort.Order> orders = new ArrayList<>();
         for (String s : sort) {
             String[] split = s.split(",");
@@ -39,55 +33,77 @@ public abstract class CrudController<T, ID, RP extends CrudRepository<T, ID>, RE
         return Sort.by(orders);
     }
 
-    protected static Pageable getPageable(int page, Integer size, Sort sort) {
+    static Pageable getPageable(int page, Integer size, Sort sort) {
         return PageRequest.of(page, size == null ? 10 : size, sort == null ? Sort.unsorted() : sort);
     }
 
-    protected abstract RES toResponse(T t);
-
-    protected abstract T newEntity();
-
-    protected abstract void updateEntity(T t, REQ req);
-
-    @GetMapping
-    public ResponseEntity<ResponseDTO<List<RES>>> getAll(@RequestParam("page") @Nullable Integer page, @RequestParam("size") @Nullable Integer size, @RequestParam("sort") @Nullable List<String> sorts) {
-        Map<String, Object> extra = new HashMap<>();
+    default ResponseEntity<ResponseDTO<List<RES>>> toResponseEntity(Page<T> page) {
         List<RES> list = new ArrayList<>();
-
-        Sort sort = sorts == null ? null : getSort(sorts);
-        Pageable pageable = page == null ? null : getPageable(page, size, sort);
-
-        Iterable<T> iterable;
-        if ((pageable == null && sort == null) || !(repository instanceof PagingAndSortingRepository)) {
-            iterable = repository.findAll();
-        } else {
-            //noinspection unchecked
-            PagingAndSortingRepository<T, ID> pagingAndSortingRepository = (PagingAndSortingRepository<T, ID>) repository;
-
-            if (pageable != null) {
-                Page<T> pageResult = pagingAndSortingRepository.findAll(pageable);
-                iterable = pageResult;
-                extra.put("totalPages", pageResult.getTotalPages());
-                extra.put("totalElements", pageResult.getTotalElements());
-                extra.put("currentPage", pageResult.getNumber());
-                extra.put("currentElements", pageResult.getNumberOfElements());
-                extra.put("hasNext", pageResult.hasNext());
-                extra.put("hasPrevious", pageResult.hasPrevious());
-            } else {
-                iterable = pagingAndSortingRepository.findAll(sort);
-            }
+        for (T t : page) {
+            RES res = toResponse(t);
+            list.add(res);
         }
 
+        Map<String, Object> extra = new HashMap<>();
+        extra.put("totalPages", page.getTotalPages());
+        extra.put("totalElements", page.getTotalElements());
+        extra.put("currentPage", page.getNumber());
+        extra.put("currentElements", page.getNumberOfElements());
+        extra.put("hasNext", page.hasNext());
+        extra.put("hasPrevious", page.hasPrevious());
+
+        return ResponseEntity.ok(new ResponseDTO<>(true, ResponseCode.SUCCESS, "OK", list, extra));
+    }
+
+    default ResponseEntity<ResponseDTO<List<RES>>> toResponseEntity(Iterable<T> iterable) {
+        List<RES> list = new ArrayList<>();
         for (T t : iterable) {
             RES res = toResponse(t);
             list.add(res);
         }
 
-        return ResponseEntity.ok(new ResponseDTO<>(true, ResponseCode.SUCCESS, "OK", list, extra));
+        return ResponseEntity.ok(new ResponseDTO<>(true, ResponseCode.SUCCESS, "OK", list, null));
+    }
+
+    default ResponseEntity<ResponseDTO<RES>> toResponseEntity(T entity) {
+        return ResponseEntity.ok(new ResponseDTO<>(true, ResponseCode.SUCCESS, "OK", toResponse(entity), null));
+    }
+
+    RP getRepository();
+
+    RES toResponse(T t);
+
+    REQ toRequest(T t);
+
+    T newEntity();
+
+    void updateEntity(T t, REQ req);
+
+    @GetMapping
+    default ResponseEntity<ResponseDTO<List<RES>>> getAll(@RequestParam("page") @Nullable Integer page, @RequestParam("size") @Nullable Integer size, @RequestParam("sort") @Nullable List<String> sorts) {
+        RP repository = getRepository();
+
+        Sort sort = sorts == null ? null : getSort(sorts);
+        Pageable pageable = page == null ? null : getPageable(page, size, sort);
+
+        if ((pageable == null && sort == null) || !(repository instanceof PagingAndSortingRepository)) {
+            return toResponseEntity(repository.findAll());
+        } else {
+            //noinspection unchecked
+            PagingAndSortingRepository<T, ID> pagingAndSortingRepository = (PagingAndSortingRepository<T, ID>) repository;
+
+            if (pageable != null) {
+                return toResponseEntity(pagingAndSortingRepository.findAll(pageable));
+            } else {
+                return toResponseEntity(pagingAndSortingRepository.findAll(sort));
+            }
+        }
     }
 
     @GetMapping("{id}")
-    public ResponseEntity<ResponseDTO<RES>> getById(@PathVariable ID id) {
+    default ResponseEntity<ResponseDTO<RES>> getById(@PathVariable ID id) {
+        RP repository = getRepository();
+
         Optional<T> optional = repository.findById(id);
         if (optional.isEmpty()) {
             return ResponseEntity
@@ -95,22 +111,21 @@ public abstract class CrudController<T, ID, RP extends CrudRepository<T, ID>, RE
                     .body(new ResponseDTO<>(false, ResponseCode.NOT_FOUND, "Not found", null, null));
         }
 
-        T t = optional.get();
-        RES res = toResponse(t);
-        return ResponseEntity.ok(new ResponseDTO<>(true, ResponseCode.SUCCESS, "OK", res, null));
+        return toResponseEntity(optional.get());
     }
 
     @PostMapping
-    public ResponseEntity<ResponseDTO<RES>> create(REQ req) {
+    default ResponseEntity<ResponseDTO<RES>> create(REQ req) {
+        RP repository = getRepository();
         T t = newEntity();
         updateEntity(t, req);
         T saved = repository.save(t);
-        RES res = toResponse(saved);
-        return ResponseEntity.ok(new ResponseDTO<>(true, ResponseCode.SUCCESS, "OK", res, null));
+        return toResponseEntity(saved);
     }
 
     @PutMapping
-    public ResponseEntity<ResponseDTO<RES>> update(@RequestParam ID id, REQ req) {
+    default ResponseEntity<ResponseDTO<RES>> update(@RequestParam ID id, REQ req) {
+        RP repository = getRepository();
         Optional<T> optional = repository.findById(id);
         if (optional.isEmpty()) {
             return ResponseEntity
@@ -121,12 +136,12 @@ public abstract class CrudController<T, ID, RP extends CrudRepository<T, ID>, RE
         T t = optional.get();
         updateEntity(t, req);
         T saved = repository.save(t);
-        RES res = toResponse(saved);
-        return ResponseEntity.ok(new ResponseDTO<>(true, ResponseCode.SUCCESS, "OK", res, null));
+        return toResponseEntity(saved);
     }
 
     @DeleteMapping("{id}")
-    public ResponseEntity<ResponseDTO<RES>> delete(@PathVariable ID id) {
+    default ResponseEntity<ResponseDTO<RES>> delete(@PathVariable ID id) {
+        RP repository = getRepository();
         Optional<T> optional = repository.findById(id);
         if (optional.isEmpty()) {
             return ResponseEntity
