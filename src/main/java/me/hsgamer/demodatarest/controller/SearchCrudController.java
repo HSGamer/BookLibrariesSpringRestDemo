@@ -11,10 +11,25 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Supplier;
 
 public interface SearchCrudController<T, ID, RP extends CrudRepository<T, ID> & JpaSpecificationExecutor<T>, REQ, RES> extends CrudController<T, ID, RP, REQ, RES> {
+    @SafeVarargs
+    static <T> Specification<T> allOf(Supplier<Specification<T>>... suppliers) {
+        List<Specification<T>> specifications = Arrays.stream(suppliers).map(Supplier::get).filter(Objects::nonNull).toList();
+        return Specification.allOf(specifications);
+    }
+
+    @SafeVarargs
+    static <T> Specification<T> anyOf(Supplier<Specification<T>>... suppliers) {
+        List<Specification<T>> specifications = Arrays.stream(suppliers).map(Supplier::get).filter(Objects::nonNull).toList();
+        return Specification.anyOf(specifications);
+    }
+
     Specification<T> getSpecification(Map<String, String> params);
 
     @GetMapping("/search")

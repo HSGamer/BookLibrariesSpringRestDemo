@@ -56,10 +56,13 @@ public class BookController extends AutoMapCrudController<Book, Integer, BookRep
 
     @Override
     public Specification<Book> getSpecification(Map<String, String> params) {
-        Specification<Book> specification = null;
-        if (params.containsKey("libraryId")) {
-            specification = (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("library").get("id"), params.get("libraryId"));
-        }
-        return specification;
+        return SearchCrudController.allOf(
+                () -> {
+                    if (params.containsKey("libraryId")) {
+                        return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("library").get("id"), params.get("libraryId"));
+                    }
+                    return null;
+                }
+        );
     }
 }
